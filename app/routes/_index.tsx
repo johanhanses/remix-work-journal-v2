@@ -1,62 +1,96 @@
+import { PrismaClient } from '@prisma/client'
 import type { ActionArgs, V2_MetaFunction } from '@remix-run/node'
-import { redirect } from '@remix-run/node'
-import { Form } from '@remix-run/react'
+import { useFetcher } from '@remix-run/react'
+import { format } from 'date-fns'
+import { useEffect, useRef } from 'react'
 
 export const meta: V2_MetaFunction = () => {
   return [{ title: 'Work Journal' }]
 }
 
 export const action = async ({ request }: ActionArgs) => {
+  const prisma = new PrismaClient()
   const formData = await request.formData()
-  const json = Object.fromEntries(formData)
-  console.log(json)
+  const { date, type, text } = Object.fromEntries(formData)
+  await new Promise((resolve) => setTimeout(resolve, 1000))
 
-  return redirect('/')
+  if (typeof date !== 'string' || typeof type !== 'string' || typeof text !== 'string')
+    throw new Error('Bad request')
+
+  return await prisma.entry.create({
+    data: {
+      date: new Date(date),
+      type: type,
+      text: text,
+    },
+  })
 }
 
 export default function Index() {
+  const fetcher = useFetcher()
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+
+  useEffect(() => {
+    if (fetcher.state === 'idle' && textareaRef.current) textareaRef.current.value = ''
+  }, [fetcher.state])
+
   return (
     <div className="mx-auto max-w-3xl p-10">
       <h1 className="text-5xl">Work journal</h1>
       <p className="mt-2 text-lg text-gray-400">Doings and learnings. Updated weekly.</p>
 
       <div className="my-8 border p-3">
-        <Form method="post">
-          <p className="italic">Create an entry</p>
-          <div>
+        <p className="italic">Create an entry</p>
+        <fetcher.Form method="post">
+          <fieldset disabled={fetcher.state === 'submitting'} className="disabled:opacity-70">
             <div className="mt-4">
-              <input type="date" name="date" className="text-gray-700" />
+              <input
+                type="date"
+                name="date"
+                defaultValue={format(new Date(), 'yyyy-MM-dd')}
+                required
+                className="text-gray-900"
+              />
             </div>
 
             <div className="mt-2 space-x-6">
               <label>
-                <input type="radio" name="category" value="work" className="mr-1" />
+                <input
+                  type="radio"
+                  name="type"
+                  value="work"
+                  defaultChecked
+                  required
+                  className="mr-1"
+                />
                 Work
               </label>
               <label>
-                <input type="radio" name="category" value="learning" className="mr-1" />
+                <input type="radio" name="type" value="learning" className="mr-1" />
                 Learning
               </label>
               <label>
-                <input type="radio" name="category" value="interesting-thing" className="mr-1" />
+                <input type="radio" name="type" value="interesting-thing" className="mr-1" />
                 Interesting thing
               </label>
             </div>
 
             <div className="mt-2">
               <textarea
+                ref={textareaRef}
                 name="text"
                 placeholder="Write your entry..."
+                required
                 className="w-full text-gray-700"
               />
             </div>
             <div className="mt-1 text-right">
               <button type="submit" className="bg-blue-500 text-white font-medium px-4 py-1">
-                Save
+                {fetcher.state === 'submitting' ? 'Saving...' : 'Save'}
               </button>
             </div>
-          </div>
-        </Form>
+          </fieldset>
+        </fetcher.Form>
       </div>
 
       {/* <div className="mt-6">
